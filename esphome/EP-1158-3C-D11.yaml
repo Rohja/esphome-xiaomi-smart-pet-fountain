@@ -1,0 +1,475 @@
+substitutions:
+  hostname: "xiaomi-smart-pet-fountain"
+  friendly_name: "Xiaomi Smart Pet Fountain"
+  log_level: "DEBUG"
+  timezone: "Europe/Paris"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true
+  # https://esphome.io/components/esphome.html#on-boot
+  on_boot:
+    priority: -100.0
+    then:
+      # Make sure all leds are initialized to OFF
+      - logger.log: Initializing LEDs to OFF
+      - script.execute: script_led_1_2_off
+      # Always start water pump on boot, no matter what
+      - logger.log: Starting water pump
+      - fan.turn_on: pump
+  project:
+    name: rohja.esphome-xiaomi-smart-pet-fountain
+    version: "0.0.1"
+
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+logger:
+  level: ${log_level}
+
+# This is needed by the text sensor bellow
+debug:
+  update_interval: 60s
+
+# Display some hardware info as well as reboot reason
+text_sensor:
+  - platform: debug
+    device:
+      name: "Device Info"
+    reset_reason:
+      name: "Reset Reason"
+
+globals:
+  # Prevent RED water level LEDs from being turned on while water level is measured.
+  - id: is_updating_water_level
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  # Mode selection
+  - id: smart_mode_on
+    type: bool
+    restore_value: yes
+    initial_value: "false"
+
+interval:
+  # Various updates
+  - id: cron_update_states
+    interval: 10s
+    then:
+      - script.execute: script_led_1_2_off
+      - script.execute: get_water_level
+      - script.execute: update_leds
+  # Pump management (Always on or Smart Mode)
+  - id: cron_pump_management
+    interval: 60s
+    then:
+      - lambda: |-
+          ESP_LOGI("pump", "Ensuring pump is ON...");
+      - fan.turn_on: pump
+      - delay: 29.5s
+      - lambda: |-
+          if (id(smart_mode_on)) {
+            ESP_LOGI("pump", "Smart mode is ON, disabling pump for 30s...");
+            id(pump).turn_off().perform();
+          }
+      - delay: 29.5s
+      - fan.turn_on: pump
+
+script:
+  # Two front leds off
+  - id: script_led_1_2_off
+    mode: queued
+    then:
+      - output.turn_off: output_front_led1_power
+      - output.turn_off: output_front_led2_power
+      - output.turn_off: output_front_leds_blue
+      - output.turn_off: output_front_leds_white
+      - output.turn_off: output_front_leds_red
+  # Left LED
+  - id: script_led1_red
+    mode: queued
+    then:
+      - script.execute: script_led_1_2_off
+      - output.turn_on: output_front_led1_power
+      - output.turn_on: output_front_leds_red
+  - id: script_led1_blue
+    mode: queued
+    then:
+      - script.execute: script_led_1_2_off
+      - output.turn_on: output_front_led1_power
+      - output.turn_on: output_front_leds_blue
+  - id: script_led1_white
+    mode: queued
+    then:
+      - script.execute: script_led_1_2_off
+      - output.turn_on: output_front_led1_power
+      - output.turn_on: output_front_leds_white
+  # Right LED
+  - id: script_led2_red
+    mode: queued
+    then:
+      - script.execute: script_led_1_2_off
+      - output.turn_on: output_front_led2_power
+      - output.turn_on: output_front_leds_red
+  - id: script_led2_blue
+    mode: queued
+    then:
+      - script.execute: script_led_1_2_off
+      - output.turn_on: output_front_led2_power
+      - output.turn_on: output_front_leds_blue
+  - id: script_led2_white
+    mode: queued
+    then:
+      - script.execute: script_led_1_2_off
+      - output.turn_on: output_front_led2_power
+      - output.turn_on: output_front_leds_white
+  # Water LED
+  - id: get_water_level
+    mode: queued
+    then:
+      - globals.set:
+          id: is_updating_water_level
+          value: "true"
+      - output.turn_off: output_led_water_level
+      - component.update: sensor_water_level_raw
+      - globals.set:
+          id: is_updating_water_level
+          value: "false"
+  # Status LEDs
+  - id: update_leds
+    mode: queued
+    then:
+      - lambda: |-
+          // WATER LEVEL ALERT LED
+          // Only shine if water is low and water level isn't being measured
+          if (!id(is_updating_water_level)) {
+            auto water_level_alert_state = id(water_level_alert).state;
+            if (water_level_alert_state) {
+              id(output_led_water_level).set_level(1);
+            }
+          }
+
+          // FRONT LEDS
+          auto pump_state = id(pump).state;
+          // Smart mode define which led will shine (left or right)
+          if (id(smart_mode_on)) {
+            // RED is there's some alerts
+            if (id(need_cleaning_alert).state || id(need_filter_change_alert).state) {
+              id(script_led2_red).execute();
+            } else {
+              // else, BLUE when the pump is running, WHITE when stopped
+              if (pump_state) {
+                id(script_led2_blue).execute();
+              } else {
+                id(script_led2_white).execute();
+              }
+            }
+          // Same for LED1
+          } else {
+            if (id(need_cleaning_alert).state || id(need_filter_change_alert).state) {
+              id(script_led1_red).execute();
+            } else {
+              if (pump_state) {
+                id(script_led1_blue).execute();
+              } else {
+                id(script_led1_white).execute();
+              }
+            }
+          }
+
+button:
+  # Utility
+  - platform: restart
+    name: "Restart Water Fountain"
+  # Manually trigger a water level measurement
+  # Convenient for callibration.
+  - platform: template
+    name: "Update Water Level"
+    on_press:
+      - logger.log: Refreshing water level manually
+      - script.execute: get_water_level
+  # # Front LEDs
+  # - platform: template
+  #   name: "Front LEDs OFF"
+  #   on_press:
+  #     - script.execute: script_led_1_2_off
+  # # Left LED
+  # - platform: template
+  #   name: "LED1 Red"
+  #   on_press:
+  #     - script.execute: script_led1_red
+  # - platform: template
+  #   name: "LED1 Blue"
+  #   on_press:
+  #     - script.execute: script_led1_blue
+  # - platform: template
+  #   name: "LED1 White"
+  #   on_press:
+  #     - script.execute: script_led1_white
+  # # Right LED
+  # - platform: template
+  #   name: "LED2 Red"
+  #   on_press:
+  #     - script.execute: script_led2_red
+  # - platform: template
+  #   name: "LED2 Blue"
+  #   on_press:
+  #     - script.execute: script_led2_blue
+  # - platform: template
+  #   name: "LED2 White"
+  #   on_press:
+  #     - script.execute: script_led2_white
+  - platform: template
+    id: reset_last_cleaned_time
+    name: Reset Cleaning Timer
+    on_press:
+      then:
+        - lambda: |-
+            auto time = id(sntp_time).now();
+            if (time.is_valid()) {
+              ESP_LOGI("time", "Time is valid!");
+              auto call = id(last_cleaned).make_call();
+              call.set_date(time.year, time.month, time.day_of_month);
+              call.perform();  
+            } else {
+              ESP_LOGE("time", "Time is INVALID!!!! Are DNS Working properly ?");
+            }
+  - platform: template
+    id: reset_last_filter_change_time
+    name: Reset Last Filter Change Timer
+    on_press:
+      then:
+        - lambda: |-
+            auto time = id(sntp_time).now();
+            if (time.is_valid()) {
+              ESP_LOGI("time", "Time is valid!");
+              auto call = id(last_filter_change).make_call();
+              call.set_date(time.year, time.month, time.day_of_month);
+              call.perform();
+            } else {
+              ESP_LOGE("time", "Time is INVALID!!!! Are DNS Working properly ?");
+            }
+
+sensor:
+  # Uptime
+  - platform: uptime
+    name: Uptime
+  # WiFi
+  - platform: wifi_signal # Reports the WiFi signal strength/RSSI in dB
+    name: "WiFi Signal dB"
+    id: wifi_signal_db
+    update_interval: 60s
+    entity_category: "diagnostic"
+  - platform: copy # Reports the WiFi signal strength in %
+    source_id: wifi_signal_db
+    name: "WiFi Signal Percent"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+    device_class: ""
+  # Water Level ADC
+  - platform: adc
+    name: "Water Level (RAW)"
+    pin: GPIO17
+    id: sensor_water_level_raw
+    update_interval: never
+    accuracy_decimals: 5
+    # Full    ~0.00293V
+    # Low     ~0.00391V
+    # Empty   ~0.00488V
+    # No Tank ~0.01758V
+    on_raw_value:
+      then:
+        - lambda: |-
+            if (x > 0.00488)   
+              x = 0.00488;
+    on_value:
+      then:
+        - component.update: sensor_water_level
+  # Water Level Human Readable
+  - platform: template
+    id: sensor_water_level
+    name: "Water Level"
+    unit_of_measurement: "%"
+    lambda: |-
+      return id(sensor_water_level_raw).state;
+    update_interval: never
+    filters:
+      - clamp:
+          min_value: 0.00200
+          max_value: 0.00550
+          ignore_out_of_range: true
+      - calibrate_linear:
+          method: least_squares
+          datapoints:
+            - 0.0     -> 101
+            - 0.00293 -> 100
+            - 0.00391 -> 50
+            - 0.00488 -> 30
+            # - 0.01758 -> 0
+
+binary_sensor:
+  # Front Mode Button
+  - platform: gpio
+    name: "Mode button"
+    internal: True
+    pin:
+      number: GPIO1
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    on_click:
+      then:
+        - lambda: |-
+            id(smart_mode_on) = !id(smart_mode_on);
+            id(update_leds).execute();
+    on_double_click:
+      then:
+        - lambda: |-
+            // reset_last_cleaned_time
+            if (id(need_cleaning_alert)) {
+              id(reset_last_cleaned_time).press();
+            }
+            if (id(need_filter_change_alert)) {
+              id(reset_last_filter_change_time).press();
+            }
+  # Low water threshold
+  - platform: template
+    name: "Water Level Low Alert"
+    id: water_level_alert
+    lambda: |-
+      if (id(sensor_water_level).state <= 30.0) {
+        return true;
+      } else {
+        return false;
+      }
+      id(update_leds).execute();
+  # Display Smart Mode to User
+  - platform: template
+    name: "Smart Mode"
+    lambda: |-
+      return id(smart_mode_on);
+  # Compare last savedDate+offset and now - Cleaning
+  - platform: template
+    name: Need Cleaning
+    id: need_cleaning_alert
+    lambda: |-
+      // ESP_LOGI("time", "Value of my datetime: %04d-%02d-%02d", id(last_cleaned).year, id(last_cleaned).month, id(last_cleaned).day);
+      auto last_time = id(last_cleaned).state_as_esptime();
+      last_time.second = 0;
+      last_time.minute = 0;
+      last_time.hour   = 0;
+      last_time.day_of_week = 1;
+      last_time.day_of_year = 1;
+      last_time.recalc_timestamp_utc(false);
+      for (int i = 0; i < 7; i++) {
+        last_time.increment_day();
+      }
+      // ESP_LOGI("time", "Last timestamp: %d", last_time.timestamp);
+      auto current_time = id(sntp_time).now();
+      // ESP_LOGI("time", "Curr timestamp: %d", current_time.timestamp);
+      return current_time > last_time;
+    on_state:
+      then:
+        lambda: |-
+          id(update_leds).execute();
+  # Compare last savedDate+offset and now - Filter Change
+  - platform: template
+    name: Need Filter Change
+    id: need_filter_change_alert
+    lambda: |-
+      // ESP_LOGI("time", "Value of my datetime: %04d-%02d-%02d", id(last_filter_change).year, id(last_filter_change).month, id(last_filter_change).day);
+      auto last_time = id(last_filter_change).state_as_esptime();
+      last_time.second = 0;
+      last_time.minute = 0;
+      last_time.hour   = 0;
+      last_time.day_of_week = 1;
+      last_time.day_of_year = 1;
+      last_time.recalc_timestamp_utc(false);
+      for (int i = 0; i < 30; i++) {
+        last_time.increment_day();
+      }
+      // ESP_LOGI("time", "Last timestamp: %d", last_time.timestamp);
+      auto current_time = id(sntp_time).now();
+      // ESP_LOGI("time", "Curr timestamp: %d", current_time.timestamp);
+      return current_time > last_time;
+    on_state:
+      then:
+        lambda: |-
+          id(update_leds).execute();
+
+output:
+  # Pump
+  - platform: gpio
+    pin: GPIO13
+    inverted: true
+    id: output_pump
+  # Leds Power
+  - platform: gpio
+    pin: GPIO4
+    id: output_front_led1_power
+  - platform: gpio
+    pin: GPIO5
+    id: output_front_led2_power
+  # Leds Colors (GND)
+  - platform: gpio
+    pin: GPIO14
+    id: output_front_leds_blue
+  - platform: gpio
+    pin: GPIO15
+    id: output_front_leds_white
+  - platform: gpio
+    pin: GPIO16
+    id: output_front_leds_red
+  # Water Level LEDs
+  - platform: esp8266_pwm
+    pin: GPIO3
+    inverted: true
+    frequency: 1000 Hz
+    id: output_led_water_level
+
+fan:
+  # Toggle for Pump
+  - platform: binary
+    output: output_pump
+    id: pump
+    name: "Pump"
+    on_turn_off:
+      then:
+        lambda: |-
+          id(update_leds).execute();
+    on_turn_on:
+      then:
+        lambda: |-
+          id(update_leds).execute();
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: ${timezone}
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 2.pool.ntp.org
+
+datetime:
+  - platform: template
+    id: last_cleaned
+    type: date
+    name: Last Cleaned
+    optimistic: yes
+    initial_value: "1970-01-01"
+    restore_value: true
+    # internal: true
+  - platform: template
+    id: last_filter_change
+    type: date
+    name: Last Filter Change
+    optimistic: yes
+    initial_value: "1970-01-01"
+    restore_value: true
+    # internal: true
