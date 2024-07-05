@@ -1,10 +1,10 @@
 # esphome-xiaomi-smart-pet-fountain
 
-ESPHome component for Xiaomi's Smart Pet Fountain (ESP8266 / ESP-WROOM-02D)
+ESPHome component for Xiaomi's Smart Pet Fountain (ESP8266 / ESP-WROOM-02D) aiming a full replacement of the original firmware, working offline and with Home-Assistant.
 
-![Xiaomi's Smart Pet Fountain product picture](./resources/product_500px_noborder.png)
+![Xiaomi's Smart Pet Fountain product picture](./resources/repo_banner.png)
 
-[Official Xiaomi Product Page](https://www.mi.com/global/product/xiaomi-smart-pet-fountain)
+[Official Xiaomi Product Page](https://www.mi.com/global/product/xiaomi-smart-pet-fountain) - [ESPHome Official Website](https://esphome.io/)
 
 ## Warning
 
@@ -13,6 +13,14 @@ ESPHome component for Xiaomi's Smart Pet Fountain (ESP8266 / ESP-WROOM-02D)
 You should be aware that this project is not affiliated with Xiaomi and that using this firmware might void your warranty. I'm not a lawyer so I can't provide any legal advice but I can tell you that I'm not responsible for any damage that might occur to your device (like the pump burning after running without any water !!).
 
 It's also a good idea to get a dump of the original firmware before flashing this one so you can revert to the original firmware if needed. Since the firmware code is the property of Xiaomi, I can't provide it here but you can find it by following the [esptool.py documentation](https://docs.espressif.com/projects/esptool/en/latest/esp32/esptool/basic-commands.html#read-flash-contents-read-flash).
+
+--------------------------------------------
+
+:warning: **Right now, this project is in a very early stage.**
+
+:warning: **MAKE SURE YOUR PET HAS ANOTHER SOURCE OF WATER BEFORE FLASHING THIS FIRMWARE.**
+
+:warning: **Only the board with the reference `EP-1158-3C-D11` has been tested. If you have another revision, please open an issue and provide as much information as possible: pictures of the board (both sides), the picture of the label under the fountain, etc.**
 
 ## Motivation
 
