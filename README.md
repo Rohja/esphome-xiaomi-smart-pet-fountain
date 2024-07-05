@@ -8,7 +8,11 @@ ESPHome component for Xiaomi's Smart Pet Fountain (ESP8266 / ESP-WROOM-02D)
 
 ## Warning
 
-**This repository is an ***in progress toy project***.**
+**This repository is an ***in progress toy project***.** This is provided without any warranty. Use at your own risk.
+
+You should be aware that this project is not affiliated with Xiaomi and that using this firmware might void your warranty. I'm not a lawyer so I can't provide any legal advice but I can tell you that I'm not responsible for any damage that might occur to your device (like the pump burning after running without any water !!).
+
+It's also a good idea to get a dump of the original firmware before flashing this one so you can revert to the original firmware if needed. Since the firmware code is the property of Xiaomi, I can't provide it here but you can find it by following the [esptool.py documentation](https://docs.espressif.com/projects/esptool/en/latest/esp32/esptool/basic-commands.html#read-flash-contents-read-flash).
 
 ## Motivation
 
@@ -20,7 +24,12 @@ It didn't stop me from buying a second one when the pump of the first one got is
 
 I now have a spare one to tinker with and it's based on ESP that I'm now quite familiar with (wether with ESPHome, ESP-IDF or Arduino).
 
-## Hardare
+## Requirements
+
+You will need a soldering iron (to solder your UART wires) and a USB to UART adapter to flash the firmware.
+Having a good understanding of ESPHome, YAML, general networking and basic electronic is also a good idea.
+
+## Fountain Hardare
 
 The hardware revision of the motherboard I have (and opened) is based around the the `ESP-WROOM-02D` that appears to be an `ESP8266` with one or two MB of Flash memory.
 
