@@ -12,7 +12,7 @@ ESPHome component for Xiaomi's Smart Pet Fountain (ESP8266 / ESP-WROOM-02D) aimi
 
 You should be aware that this project is not affiliated with Xiaomi and that using this firmware might void your warranty. I'm not a lawyer so I can't provide any legal advice but I can tell you that I'm not responsible for any damage that might occur to your device (like the pump burning after running without any water !!).
 
-It's also a good idea to get a dump of the original firmware before flashing this one so you can revert to the original firmware if needed. Since the firmware code is the property of Xiaomi, I can't provide it here but you can find it by following the [esptool.py documentation](https://docs.espressif.com/projects/esptool/en/latest/esp32/esptool/basic-commands.html#read-flash-contents-read-flash).
+It's also a good idea to get a dump of the original firmware before flashing this one so you can revert to the original firmware if needed. Since the firmware code is the property of Xiaomi, I can't provide it here but you can dump your own copy by following the [esptool.py documentation](https://docs.espressif.com/projects/esptool/en/latest/esp32/esptool/basic-commands.html#read-flash-contents-read-flash).
 
 --------------------------------------------
 
