@@ -3,6 +3,11 @@ substitutions:
   friendly_name: "Xiaomi Smart Pet Fountain"
   log_level: "DEBUG"
   timezone: "Europe/Paris"
+  # Water Level ADC, in Volts
+  water_level_adc_full: "0.00293"
+  water_level_adc_low: "0.00391"
+  water_level_adc_empty: "0.00488"
+  water_level_adc_no_tank: "0.01758"
 
 esphome:
   name: ${name}
@@ -285,15 +290,11 @@ sensor:
     id: sensor_water_level_raw
     update_interval: never
     accuracy_decimals: 5
-    # Full    ~0.00293V
-    # Low     ~0.00391V
-    # Empty   ~0.00488V
-    # No Tank ~0.01758V
-    on_raw_value:
-      then:
-        - lambda: |-
-            if (x > 0.00488)   
-              x = 0.00488;
+    # on_raw_value:
+    #   then:
+    #     - lambda: |-
+    #         if (x > 0.00488)
+    #           x = 0.00488;
     on_value:
       then:
         - component.update: sensor_water_level
@@ -306,18 +307,18 @@ sensor:
       return id(sensor_water_level_raw).state;
     update_interval: never
     filters:
-      - clamp:
-          min_value: 0.00200
-          max_value: 0.00550
-          ignore_out_of_range: true
+      # - clamp:
+      #     min_value: 0.00200
+      #     max_value: 0.00550
+      #     ignore_out_of_range: true
       - calibrate_linear:
           method: least_squares
           datapoints:
             - 0.0     -> 101
-            - 0.00293 -> 100
-            - 0.00391 -> 50
-            - 0.00488 -> 30
-            # - 0.01758 -> 0
+            - ${water_level_adc_full} -> 100
+            - ${water_level_adc_low} -> 50
+            - ${water_level_adc_empty} -> 0
+            - ${water_level_adc_no_tank} -> -10
 
 binary_sensor:
   # Front Mode Button
