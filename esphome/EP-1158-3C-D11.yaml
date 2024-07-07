@@ -251,6 +251,14 @@ button:
             } else {
               ESP_LOGE("time", "Time is INVALID!!!! Are DNS Working properly ?");
             }
+  - platform: template
+    id: button_switch_mode
+    name: Switch Mode
+    on_press:
+      then:
+        - lambda: |-
+            id(smart_mode_on) = !id(smart_mode_on);
+            id(update_leds).execute();
 
 sensor:
   # Uptime
