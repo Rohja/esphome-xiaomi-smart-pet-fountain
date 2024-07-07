@@ -134,6 +134,8 @@ script:
   - id: get_water_level
     mode: queued
     then:
+      - lambda: |-
+          ESP_LOGI("water_level", "Measuring water level...");
       - globals.set:
           id: is_updating_water_level
           value: "true"
@@ -142,6 +144,10 @@ script:
       - globals.set:
           id: is_updating_water_level
           value: "false"
+      - lambda: |-
+          ESP_LOGI("water_level", "Water level is %f", id(sensor_water_level_raw).state);
+          id(update_leds).execute();
+
   # Status LEDs
   - id: update_leds
     mode: queued
@@ -193,7 +199,8 @@ button:
   - platform: template
     name: "Update Water Level"
     on_press:
-      - logger.log: Refreshing water level manually
+      - lambda: |-
+          ESP_LOGI("water_level", "Refreshing water level manually");
       - script.execute: get_water_level
   # # Front LEDs
   # - platform: template
