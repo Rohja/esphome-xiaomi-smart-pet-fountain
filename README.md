@@ -52,7 +52,19 @@ Some quick informations:
 - The pads `RX`/`TX`/`GND`/`3.3V` are where you need to solder your UART wires.
 - The pump is powered with 5V but is controlled using 3.3V.
 
-**NOTE:** _You can find the exact pins used by each led, button, etc. by reading the `yaml` configuration file for ESPHome_.
+### Pinout
+
+| Pin    | Usage                     | Specificity             |
+| ------ | ------------------------- | ----------------------- |
+| GPIO17 | Water level Photoresistor | -                       |
+| GPIO1  | Front button (Mode)       | Inverted, PullUp        |
+| GPIO13 | Pump control              | Inverted                |
+| GPIO4  | Left LED common +         | -                       |
+| GPIO5  | Right LED common +        | -                       |
+| GPIO14 | Leds common Blue          | -                       |
+| GPIO15 | Leds common White         | -                       |
+| GPIO16 | Leds common Red           | -                       |
+| GPIO3  | Red Alert central Led     | Inverted, used with PWM |
 
 ## ESPHome Firmware
 
