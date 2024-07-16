@@ -4,7 +4,7 @@ ESPHome component for Xiaomi's Smart Pet Fountain (ESP8266 / ESP-WROOM-02D) aimi
 
 ![Xiaomi's Smart Pet Fountain product picture](./resources/repo_banner.png)
 
-[Official Xiaomi Product Page](https://www.mi.com/global/product/xiaomi-smart-pet-fountain) - [ESPHome Official Website](https://esphome.io/)
+[Official Xiaomi Product Page](https://www.mi.com/global/product/xiaomi-smart-pet-fountain) - [ESPHome Official site](https://esphome.io/)
 
 ## Warning
 
@@ -143,7 +143,7 @@ web_server:
 
 ### How to get new version notifications
 
-You can follow [this official Github guide](https://docs.github.com/en/account-and-profile/managing-subscriptions-and-notifications-on-github/managing-subscriptions-for-activity-on-github/viewing-your-subscriptions) to recieve notification on new releases.
+You can follow [this official GitHub guide](https://docs.github.com/en/account-and-profile/managing-subscriptions-and-notifications-on-github/managing-subscriptions-for-activity-on-github/viewing-your-subscriptions) to recieve notification on new releases.
 
 ### Troubleshooting
 
