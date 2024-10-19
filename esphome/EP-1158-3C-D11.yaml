@@ -156,43 +156,43 @@ script:
   - id: update_leds
     mode: queued
     then:
-      - logger.log: NOT Updating LEDs
-      # - lambda: |-
-      #     // WATER LEVEL ALERT LED
-      #     // Only shine if water is low and water level isn't being measured
-      #     if (!id(is_updating_water_level)) {
-      #       auto water_level_alert_state = id(water_level_alert).state;
-      #       if (water_level_alert_state) {
-      #         id(output_led_water_level).set_level(1);
-      #       }
-      #     }
-      #     // FRONT LEDS
-      #     auto pump_state = id(pump).state;
-      #     // Smart mode define which led will shine (left or right)
-      #     if (id(smart_mode_on)) {
-      #       // RED is there's some alerts
-      #       if (id(need_cleaning_alert).state || id(need_filter_change_alert).state) {
-      #         id(script_led2_red).execute();
-      #       } else {
-      #         // else, BLUE when the pump is running, WHITE when stopped
-      #         if (pump_state) {
-      #           id(script_led2_blue).execute();
-      #         } else {
-      #           id(script_led2_white).execute();
-      #         }
-      #       }
-      #     // Same for LED1
-      #     } else {
-      #       if (id(need_cleaning_alert).state || id(need_filter_change_alert).state) {
-      #         id(script_led1_red).execute();
-      #       } else {
-      #         if (pump_state) {
-      #           id(script_led1_blue).execute();
-      #         } else {
-      #           id(script_led1_white).execute();
-      #         }
-      #       }
-      #     }
+      # - logger.log: NOT Updating LEDs
+      - lambda: |-
+          // WATER LEVEL ALERT LED
+          // Only shine if water is low and water level isn't being measured
+          if (!id(is_updating_water_level)) {
+            auto water_level_alert_state = id(water_level_alert).state;
+            if (water_level_alert_state) {
+              id(output_led_water_level).set_level(1);
+            }
+          }
+          // FRONT LEDS
+          auto pump_state = id(pump).state;
+          // Smart mode define which led will shine (left or right)
+          if (id(smart_mode_on)) {
+            // RED is there's some alerts
+            if (id(need_cleaning_alert).state || id(need_filter_change_alert).state) {
+              id(script_led2_red).execute();
+            } else {
+              // else, BLUE when the pump is running, WHITE when stopped
+              if (pump_state) {
+                id(script_led2_blue).execute();
+              } else {
+                id(script_led2_white).execute();
+              }
+            }
+          // Same for LED1
+          } else {
+            if (id(need_cleaning_alert).state || id(need_filter_change_alert).state) {
+              id(script_led1_red).execute();
+            } else {
+              if (pump_state) {
+                id(script_led1_blue).execute();
+              } else {
+                id(script_led1_white).execute();
+              }
+            }
+          }
 
 button:
   # Utility
