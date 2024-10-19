@@ -315,6 +315,7 @@ sensor:
     name: "Water Level"
     unit_of_measurement: "%"
     lambda: |-
+      ESP_LOGI("sensor_water_level", "Updating water level percentage");
       return id(sensor_water_level_raw).state;
     update_interval: never
     filters:
