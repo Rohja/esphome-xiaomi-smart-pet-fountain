@@ -139,6 +139,7 @@ captive_portal:
 # Optional
 web_server:
   port: 80
+  version: 3
 ```
 
 ### How to get new version notifications
