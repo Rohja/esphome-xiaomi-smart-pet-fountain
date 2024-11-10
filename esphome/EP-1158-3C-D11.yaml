@@ -3,6 +3,11 @@ substitutions:
   friendly_name: "Xiaomi Smart Pet Fountain"
   log_level: "DEBUG"
   timezone: "Europe/Paris"
+  # Water Level ADC, in Volts
+  water_level_adc_full: "0.00293"
+  water_level_adc_low: "0.00391"
+  water_level_adc_empty: "0.00488"
+  water_level_adc_no_tank: "0.01758"
 
 esphome:
   name: ${name}
@@ -18,6 +23,10 @@ esphome:
       # Always start water pump on boot, no matter what
       - logger.log: Starting water pump
       - fan.turn_on: pump
+      # - output.turn_on: output_led_water_level
+      # - output.set_level:
+      #     id: output_led_water_level
+      #     level: 0.5
   project:
     name: rohja.esphome-xiaomi-smart-pet-fountain
     version: "0.0.1"
@@ -129,18 +138,25 @@ script:
   - id: get_water_level
     mode: queued
     then:
+      - lambda: |-
+          ESP_LOGI("water_level", "Measuring water level...");
       - globals.set:
           id: is_updating_water_level
           value: "true"
-      - output.turn_off: output_led_water_level
+      # - output.turn_off: output_led_water_level
       - component.update: sensor_water_level_raw
       - globals.set:
           id: is_updating_water_level
           value: "false"
+      - lambda: |-
+          ESP_LOGI("water_level", "Water level is %f", id(sensor_water_level_raw).state);
+          id(update_leds).execute();
+
   # Status LEDs
   - id: update_leds
     mode: queued
     then:
+      # - logger.log: NOT Updating LEDs
       - lambda: |-
           // WATER LEVEL ALERT LED
           // Only shine if water is low and water level isn't being measured
@@ -150,7 +166,6 @@ script:
               id(output_led_water_level).set_level(1);
             }
           }
-
           // FRONT LEDS
           auto pump_state = id(pump).state;
           // Smart mode define which led will shine (left or right)
@@ -188,7 +203,8 @@ button:
   - platform: template
     name: "Update Water Level"
     on_press:
-      - logger.log: Refreshing water level manually
+      - lambda: |-
+          ESP_LOGI("water_level", "Refreshing water level manually");
       - script.execute: get_water_level
   # # Front LEDs
   # - platform: template
@@ -285,15 +301,11 @@ sensor:
     id: sensor_water_level_raw
     update_interval: never
     accuracy_decimals: 5
-    # Full    ~0.00293V
-    # Low     ~0.00391V
-    # Empty   ~0.00488V
-    # No Tank ~0.01758V
-    on_raw_value:
-      then:
-        - lambda: |-
-            if (x > 0.00488)   
-              x = 0.00488;
+    # on_raw_value:
+    #   then:
+    #     - lambda: |-
+    #         if (x > 0.00488)
+    #           x = 0.00488;
     on_value:
       then:
         - component.update: sensor_water_level
@@ -303,21 +315,22 @@ sensor:
     name: "Water Level"
     unit_of_measurement: "%"
     lambda: |-
+      ESP_LOGI("sensor_water_level", "Updating water level percentage");
       return id(sensor_water_level_raw).state;
     update_interval: never
     filters:
-      - clamp:
-          min_value: 0.00200
-          max_value: 0.00550
-          ignore_out_of_range: true
+      # - clamp:
+      #     min_value: 0.00200
+      #     max_value: 0.00550
+      #     ignore_out_of_range: true
       - calibrate_linear:
           method: least_squares
           datapoints:
             - 0.0     -> 101
-            - 0.00293 -> 100
-            - 0.00391 -> 50
-            - 0.00488 -> 30
-            # - 0.01758 -> 0
+            - ${water_level_adc_full} -> 100
+            - ${water_level_adc_low} -> 50
+            - ${water_level_adc_empty} -> 0
+            - ${water_level_adc_no_tank} -> -10
 
 binary_sensor:
   # Front Mode Button
