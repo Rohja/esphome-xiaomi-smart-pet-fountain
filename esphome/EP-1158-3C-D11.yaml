@@ -23,10 +23,6 @@ esphome:
       # Always start water pump on boot, no matter what
       - logger.log: Starting water pump
       - fan.turn_on: pump
-      # - output.turn_on: output_led_water_level
-      # - output.set_level:
-      #     id: output_led_water_level
-      #     level: 0.5
   project:
     name: rohja.esphome-xiaomi-smart-pet-fountain
     version: "0.0.1"
@@ -143,7 +139,7 @@ script:
       - globals.set:
           id: is_updating_water_level
           value: "true"
-      # - output.turn_off: output_led_water_level
+      - output.turn_off: output_led_water_level
       - component.update: sensor_water_level_raw
       - globals.set:
           id: is_updating_water_level
@@ -163,7 +159,9 @@ script:
           if (!id(is_updating_water_level)) {
             auto water_level_alert_state = id(water_level_alert).state;
             if (water_level_alert_state) {
-              id(output_led_water_level).set_level(1);
+              id(output_led_water_level).turn_on();
+            } else {
+              id(output_led_water_level).turn_off();
             }
           }
           // FRONT LEDS
@@ -301,11 +299,6 @@ sensor:
     id: sensor_water_level_raw
     update_interval: never
     accuracy_decimals: 5
-    # on_raw_value:
-    #   then:
-    #     - lambda: |-
-    #         if (x > 0.00488)
-    #           x = 0.00488;
     on_value:
       then:
         - component.update: sensor_water_level
@@ -314,23 +307,53 @@ sensor:
     id: sensor_water_level
     name: "Water Level"
     unit_of_measurement: "%"
-    lambda: |-
-      ESP_LOGI("sensor_water_level", "Updating water level percentage");
-      return id(sensor_water_level_raw).state;
     update_interval: never
-    filters:
-      # - clamp:
-      #     min_value: 0.00200
-      #     max_value: 0.00550
-      #     ignore_out_of_range: true
-      - calibrate_linear:
-          method: least_squares
-          datapoints:
-            - 0.0     -> 101
-            - ${water_level_adc_full} -> 100
-            - ${water_level_adc_low} -> 50
-            - ${water_level_adc_empty} -> 0
-            - ${water_level_adc_no_tank} -> -10
+    lambda: |-
+      float voltage = id(sensor_water_level_raw).state;
+      float percentage;
+      
+      ESP_LOGI("sensor_water_level", "Raw ADC voltage: %f V", voltage);
+      
+      // Calibration points (inverse relationship: lower voltage = higher water level)
+      const float adc_full = 0.00293f;      // 100%
+      const float adc_low = 0.00391f;       // 50%
+      const float adc_empty = 0.00488f;     // 0%
+      const float adc_no_tank = 0.01758f;   // -10% (no tank detected)
+      
+      // Check for no tank condition first
+      if (voltage >= adc_no_tank) {
+        percentage = -10.0f;
+        ESP_LOGI("sensor_water_level", "No tank detected (voltage: %f V)", voltage);
+      }
+      // Full water level (voltage <= full threshold)
+      else if (voltage <= adc_full) {
+        percentage = 100.0f;
+        ESP_LOGI("sensor_water_level", "Full water level (voltage: %f V)", voltage);
+      }
+      // Empty water level (voltage >= empty threshold)
+      else if (voltage >= adc_empty) {
+        percentage = 0.0f;
+        ESP_LOGI("sensor_water_level", "Empty water level (voltage: %f V)", voltage);
+      }
+      // Between full and low: linear interpolation from 100% to 50%
+      else if (voltage <= adc_low) {
+        // Linear interpolation: percentage = 100 - (voltage - adc_full) * (50 / (adc_low - adc_full))
+        percentage = 100.0f - ((voltage - adc_full) / (adc_low - adc_full)) * 50.0f;
+        ESP_LOGI("sensor_water_level", "Between full and low: %f%% (voltage: %f V)", percentage, voltage);
+      }
+      // Between low and empty: linear interpolation from 50% to 0%
+      else {
+        // Linear interpolation: percentage = 50 - (voltage - adc_low) * (50 / (adc_empty - adc_low))
+        percentage = 50.0f - ((voltage - adc_low) / (adc_empty - adc_low)) * 50.0f;
+        ESP_LOGI("sensor_water_level", "Between low and empty: %f%% (voltage: %f V)", percentage, voltage);
+      }
+      
+      // Clamp to reasonable range
+      if (percentage > 100.0f) percentage = 100.0f;
+      if (percentage < -10.0f) percentage = -10.0f;
+      
+      ESP_LOGI("sensor_water_level", "Calculated water level: %f%%", percentage);
+      return percentage;
 
 binary_sensor:
   # Front Mode Button
@@ -447,10 +470,9 @@ output:
     pin: GPIO16
     id: output_front_leds_red
   # Water Level LEDs
-  - platform: esp8266_pwm
+  - platform: gpio
     pin: GPIO3
     inverted: true
-    frequency: 1000 Hz
     id: output_led_water_level
 
 fan:
