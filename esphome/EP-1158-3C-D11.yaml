@@ -299,6 +299,10 @@ sensor:
     id: sensor_water_level_raw
     update_interval: never
     accuracy_decimals: 5
+    # Adc Config
+    raw: false
+    samples: 5
+    sampling_mode: avg
     on_value:
       then:
         - component.update: sensor_water_level
