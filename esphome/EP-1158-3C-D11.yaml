@@ -303,6 +303,12 @@ sensor:
     raw: false
     samples: 5
     sampling_mode: avg
+    # Filters
+    filters:
+      - sliding_window_moving_average:
+          # With a 10s update interval, we need 18 measurements to get one value every 3min.
+          window_size: 18
+          send_every: 18
     on_value:
       then:
         - component.update: sensor_water_level
