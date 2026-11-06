@@ -1,0 +1,278 @@
+# Xiaomi Smart Pet Fountain XWWF01MG-EU, board EP-1158-EMC-D15 (ESP-WROOM-02D / ESP8266, 2 MB)
+# Fully local ESPHome firmware. Behaviour reverse-engineered from the stock firmware, see
+# components/xiaomi_fountain_d15/xiaomi_fountain_d15.h. Use it as a package (see README): your own
+# configuration adds api / ota / wifi and can override every substitution below.
+#
+# Buttons:
+#   Front (GPIO1)   short press: Normal <-> Smart (and Off -> Normal) | held 2-6 s: Off <-> Normal
+#   Bottom (GPIO0)  short press: LED mode On -> Timed -> Off -> On | held 1.5-4 s: LED colour test (tuning aid)
+#                   held >= 5 s: reset both maintenance counters
+#
+# Debugging: set the substitution `log_level: DEBUG` to get one log line per sensing window
+# (falling-edge count + the 50 samples read on GPIO13).
+#
+# Language: names and states are in English. Override the n_* / opt_* / st_* substitutions in your own
+# configuration to translate them (a French block is given in the README). ESPHome cannot follow the
+# Home Assistant language by itself: the texts are fixed in the firmware.
+
+substitutions:
+  name: "xiaomi-pet-fountain"
+  friendly_name: "Xiaomi Pet Fountain"
+  log_level: "INFO"
+  timezone: "Europe/Paris"
+  # Git ref of this repository used to fetch the C++ helper
+  fountain_ref: "master"
+  # Smart mode: "day" hours (10 min on / 10 min off); outside them: 10 min on / 50 min off
+  day_start_hour: "8"
+  day_end_hour: "22"
+
+  # Entity names and texts
+  n_mode: "Mode"
+  opt_normal: "Normal"
+  opt_smart: "Smart"
+  opt_off: "Off"
+  n_led_mode: "LED mode"
+  opt_led_on: "On"
+  opt_led_off: "Off"
+  opt_led_timed: "Timed"
+  n_status: "Status"
+  st_off: "Off"
+  st_measuring: "Checking"
+  st_running: "Running"
+  st_paused: "Paused (smart mode)"
+  st_no_water: "No water"
+  st_blocked: "Pump blocked"
+  st_lid: "Lid open"
+  n_filter: "Filter remaining"
+  n_clean: "Cleaning due in"
+  n_reset_filter: "Reset filter"
+  n_reset_clean: "Reset cleaning"
+
+  # Maintenance limits taken from the stock firmware (hours): filter 720 h (30 days), cleaning 168 h (7 days)
+  filter_hours: "720"
+  clean_hours: "168"
+  # LED mode "Timed": the LEDs go out after this many seconds
+  led_timeout_s: "10"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  project:
+    name: rohja.esphome-xiaomi-smart-pet-fountain
+    version: "0.1.0-d15"
+  on_boot:
+    priority: 800     # as early as possible: pump OFF, LEDs off
+    then:
+      - lambda: |-
+          xiaomi_fountain_d15::ctl.led_timeout_ds = ${led_timeout_s} * 10;
+          xiaomi_fountain_d15::ctl.begin();
+
+esp8266:
+  board: esp_wroom_02
+  restore_from_flash: true     # needed so that counters and settings survive a power cut
+preferences:
+  flash_write_interval: 30min
+
+logger:
+  baud_rate: 0     # GPIO1 / GPIO3 are UART0: used here as a button and an LED, so no serial log
+  level: ${log_level}
+
+external_components:
+  - source: github://Rohja/esphome-xiaomi-smart-pet-fountain@${fountain_ref}
+    components: [xiaomi_fountain_d15]
+
+xiaomi_fountain_d15:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: ${timezone}
+
+globals:
+  # Minutes of use since the last reset (persisted). The stock firmware counts the same way (filter
+  # 720 h, cleaning 168 h); set initial_value in your own config to carry over a partially used filter.
+  - id: filter_used_min
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: clean_used_min
+    type: int
+    restore_value: true
+    initial_value: '0'
+
+select:
+  # Mode / Smart / Off LEDs around the front button (the red problem LED is not affected)
+  - platform: template
+    name: "${n_led_mode}"
+    id: led_mode
+    options: ["${opt_led_on}", "${opt_led_off}", "${opt_led_timed}"]
+    initial_option: "${opt_led_timed}"
+    optimistic: true
+    restore_value: true
+    entity_category: config
+    icon: mdi:led-on
+    on_value:
+      - lambda: |-
+          xiaomi_fountain_d15::ctl.wake_leds();
+  - platform: template
+    name: "${n_mode}"
+    id: work_mode
+    # Off is last so that the index restored from an older version stays valid
+    options: ["${opt_normal}", "${opt_smart}", "${opt_off}"]
+    initial_option: "${opt_smart}"
+    optimistic: true
+    restore_value: true
+    icon: mdi:calendar-clock
+
+text_sensor:
+  # The single status entity: what the fountain is doing right now
+  - platform: template
+    name: "${n_status}"
+    icon: mdi:water-check
+    update_interval: 1s
+    lambda: |-
+      static int last = -1;
+      const int s = xiaomi_fountain_d15::ctl.status();
+      if (s == last) return {};   // publish only on change
+      last = s;
+      switch (s) {
+        case xiaomi_fountain_d15::ST_OFF: return std::string("${st_off}");
+        case xiaomi_fountain_d15::ST_MEASURING: return std::string("${st_measuring}");
+        case xiaomi_fountain_d15::ST_PAUSED: return std::string("${st_paused}");
+        case xiaomi_fountain_d15::ST_NO_WATER: return std::string("${st_no_water}");
+        case xiaomi_fountain_d15::ST_BLOCKED: return std::string("${st_blocked}");
+        case xiaomi_fountain_d15::ST_LID: return std::string("${st_lid}");
+        default: return std::string("${st_running}");
+      }
+
+binary_sensor:
+  # --- physical buttons (internal, not exposed to HA) ---
+  - platform: gpio
+    id: btn_front
+    internal: true
+    pin: {number: GPIO1, mode: INPUT_PULLUP, inverted: true}
+    filters:
+      - delayed_on: 30ms
+    on_click:
+      - min_length: 50ms
+        max_length: 1500ms
+        then:
+          - lambda: |-
+              // Off -> Normal -> Smart -> Normal ...
+              id(work_mode).make_call().set_option(xiaomi_fountain_d15::ctl.mode == xiaomi_fountain_d15::MODE_NORMAL ? "${opt_smart}" : "${opt_normal}").perform();
+      - min_length: 2s
+        max_length: 6s
+        then:
+          - lambda: |-
+              // long press: pump stopped (Off) / restarted (Normal)
+              id(work_mode).make_call().set_option(xiaomi_fountain_d15::ctl.mode == xiaomi_fountain_d15::MODE_OFF ? "${opt_normal}" : "${opt_off}").perform();
+  - platform: gpio
+    id: btn_bottom
+    internal: true
+    pin: {number: GPIO0, mode: INPUT_PULLUP, inverted: true}
+    filters:
+      - delayed_on: 30ms
+    on_click:
+      - min_length: 1500ms
+        max_length: 4s
+        then:
+          - lambda: |-
+              xiaomi_fountain_d15::ctl.cycle_color();
+      - min_length: 50ms
+        max_length: 1400ms
+        then:
+          - lambda: |-
+              const char *m = id(led_mode).current_option().c_str();
+              const char *next = strcmp(m, "${opt_led_on}") == 0 ? "${opt_led_timed}" :
+                                 (strcmp(m, "${opt_led_timed}") == 0 ? "${opt_led_off}" : "${opt_led_on}");
+              id(led_mode).make_call().set_option(next).perform();
+      - min_length: 5s
+        max_length: 30s
+        then:
+          - lambda: |-
+              id(filter_used_min) = 0; id(clean_used_min) = 0;
+              id(filter_left).publish_state(${filter_hours}); id(clean_left).publish_state(${clean_hours});
+
+sensor:
+  # Reported in hours (device class "duration"): in Home Assistant, open the entity settings and pick
+  # "d" (days) as the display unit.
+  - platform: template
+    name: "${n_filter}"
+    id: filter_left
+    device_class: duration
+    unit_of_measurement: "h"
+    accuracy_decimals: 1
+    state_class: measurement
+    entity_category: diagnostic
+    update_interval: 1min
+    lambda: |-
+      float r = ${filter_hours} - id(filter_used_min) / 60.0f;
+      return r < 0 ? 0 : r;
+  - platform: template
+    name: "${n_clean}"
+    id: clean_left
+    device_class: duration
+    unit_of_measurement: "h"
+    accuracy_decimals: 1
+    state_class: measurement
+    entity_category: diagnostic
+    update_interval: 1min
+    lambda: |-
+      float r = ${clean_hours} - id(clean_used_min) / 60.0f;
+      return r < 0 ? 0 : r;
+
+button:
+  - platform: template
+    name: "${n_reset_filter}"
+    entity_category: config
+    on_press:
+      - lambda: |-
+          id(filter_used_min) = 0;
+          id(filter_left).publish_state(${filter_hours});
+  - platform: template
+    name: "${n_reset_clean}"
+    entity_category: config
+    on_press:
+      - lambda: |-
+          id(clean_used_min) = 0;
+          id(clean_left).publish_state(${clean_hours});
+
+interval:
+  # 10 ms task (as in the stock firmware): mode, pump and water sensing
+  - interval: 10ms
+    then:
+      - lambda: |-
+          auto &c = xiaomi_fountain_d15::ctl;
+          const char *m = id(work_mode).current_option().c_str();
+          c.set_mode(strcmp(m, "${opt_off}") == 0 ? xiaomi_fountain_d15::MODE_OFF : (strcmp(m, "${opt_smart}") == 0 ? xiaomi_fountain_d15::MODE_SMART : xiaomi_fountain_d15::MODE_NORMAL));
+          c.want_pump = c.mode != xiaomi_fountain_d15::MODE_OFF && (c.mode != xiaomi_fountain_d15::MODE_SMART || c.smart_on);
+          c.tick();
+
+  # Smart mode schedule (stock firmware): day = 10 min on / 10 min off, night = 10 min on / 50 min off
+  - interval: 1s
+    then:
+      - lambda: |-
+          auto &c = xiaomi_fountain_d15::ctl;
+          if (c.mode != xiaomi_fountain_d15::MODE_SMART) {
+            // Normal: ready to start in the "off" phase; Off: ready to start in the "on" phase
+            if (c.mode == xiaomi_fountain_d15::MODE_OFF) c.smart_reset(); else c.smart_start_off();
+            return;
+          }
+          auto t = id(sntp_time).now();
+          const bool day = !t.is_valid() || (t.hour >= ${day_start_hour} && t.hour < ${day_end_hour});
+          c.smart_tick(day);
+
+  # Maintenance counters: minutes spent outside the Off mode
+  - interval: 60s
+    then:
+      - lambda: |-
+          if (xiaomi_fountain_d15::ctl.mode == xiaomi_fountain_d15::MODE_OFF) return;
+          id(filter_used_min)++; id(clean_used_min)++;
+
+  # LEDs (100 ms): left = Normal, right = Smart, white; red problem LED always active
+  - interval: 100ms
+    then:
+      - lambda: |-
+          const char *m = id(led_mode).current_option().c_str();
+          xiaomi_fountain_d15::ctl.update_leds(strcmp(m, "${opt_led_on}") == 0 ? xiaomi_fountain_d15::LED_ON :
+                                    (strcmp(m, "${opt_led_off}") == 0 ? xiaomi_fountain_d15::LED_OFF : xiaomi_fountain_d15::LED_TIMED));

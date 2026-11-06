@@ -20,7 +20,7 @@ It's also a good idea to get a dump of the original firmware before flashing thi
 
 :warning: **MAKE SURE YOUR PET HAS ANOTHER SOURCE OF WATER BEFORE FLASHING THIS FIRMWARE.**
 
-:warning: **Only the board with the reference `EP-1158-3C-D11` has been tested. If you have another revision, please open an issue and provide as much information as possible: pictures of the board (both sides), the picture of the label under the fountain, etc.**
+:warning: **Two board references are supported: `EP-1158-3C-D11` (this page) and `EP-1158-EMC-D15` (EU model `XWWF01MG-EU`, see [docs/EP-1158-EMC-D15.md](docs/EP-1158-EMC-D15.md)). Check the reference printed on your board: the firmwares are not interchangeable. If you have another revision, please open an issue and provide as much information as possible: pictures of the board (both sides), the picture of the label under the fountain, etc.**
 
 ## Motivation
 
@@ -149,6 +149,12 @@ You can follow [this official GitHub guide](https://docs.github.com/en/account-a
 ### Troubleshooting
 
 Nothing here, yet. Once some recurring issues are discovered this part will be updated.
+
+## Board EP-1158-EMC-D15
+
+The EU fountain `XWWF01MG-EU` ships with a different board, `EP-1158-EMC-D15`, without water level photoresistor: water level, lid and pump blockage are sensed through the pump line (GPIO13), like the stock firmware does. It has its own package, `esphome/EP-1158-EMC-D15.yaml`, and a small C++ helper in `components/xiaomi_fountain_d15`.
+
+Pinout, sensing logic, features, installation and French translation: [docs/EP-1158-EMC-D15.md](docs/EP-1158-EMC-D15.md).
 
 ## Home-Assistant Integration
 
